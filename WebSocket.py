@@ -1,4 +1,5 @@
 import socket
+import re
 
 class Parser():
     def create_header(self):
@@ -121,6 +122,36 @@ class WebSocket():
                 length_field = chr(0) + length_field
 
         return chr(b1) + chr(b2) + length_field + message
+
+    def __split_packet(self, length, packet, user):
+        if user.handling_partial_packet:
+            packet = user.partial_buffer + packet
+            user.handling_partial_packet = False
+            length = len(packet)
+        fullpacket = packet
+        frame_pos = 0
+        frame_id = 1
+
+        while frame_pos < length:
+            headers = self.extract_headers(packet) #TODO: Lag denne metoden
+            headers_size = self.calcoffset(headers) #TODO: Lag denne metoden
+            frame_size = headers['length'] + headers_size
+
+            #Process single frame
+            frame = fullpacket[frame_pos:frame_size]
+            message = self.deframe(frame, user, headers) #TODO: Lag denne metoden
+            if message !== False:
+                if user.has_sent_close:
+                    self.disconnect(user.socket) #TODO: Lag denne metoden
+                else:
+                    if (re.match('//u', message)) or (headers['opcode'] == 2):
+                        self.process(user, message) #TODO: Lag denne metoden
+                    else:
+                        self.stderr("not UTF-8\n") #TODO: Lag denne metoden
+            frame_pos += frame_size
+            packet = fullpacket[frame_pos:]
+            frame_id += 1
+
 
 
 host = ''
